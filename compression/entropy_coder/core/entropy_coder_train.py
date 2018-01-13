@@ -23,11 +23,12 @@ import code_loader
 import config_helper
 
 # pylint: disable=unused-import
-from entropy_coder.all_models import all_models
+from all_models import all_models
 # pylint: enable=unused-import
-from entropy_coder.model import model_factory
-
-
+from model import model_factory
+from progressive import progressive
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = '2'
 FLAGS = tf.app.flags.FLAGS
 
 # Hardware resources configuration.
@@ -85,7 +86,8 @@ def train():
   max_bit_depth = (
       first_code.features.feature['code_shape'].int64_list.value[2])
   print('Maximum code depth: {}'.format(max_bit_depth))
-
+  config = tf.ConfigProto()
+  config.gpu_options.allow_growth = True
   with tf.Graph().as_default():
     ps_ops = ["Variable", "VariableV2", "AutoReloadVariable", "VarHandleOp"]
     with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks,
@@ -115,8 +117,10 @@ def train():
       optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate,
                                          epsilon=1.0)
 
+      # print model_factory.GetModelRegistry().GetAvailableModels()
       # Create the entropy coder model.
-      model = model_factory.GetModelRegistry().CreateModel(FLAGS.model)
+      model = progressive.ProgressiveModel()
+      
       model_config_string = config_helper.GetConfigString(FLAGS.model_config)
       model.Initialize(global_step, optimizer, model_config_string)
       model.BuildGraph(codes)
